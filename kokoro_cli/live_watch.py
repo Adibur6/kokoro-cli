@@ -10,7 +10,11 @@ WATCH_POLL_SECS = 0.35
 def watch_clipboard(speak, console, pipe, voice: str, voice_path: str, device: str, speed: float) -> None:
     console.print(f"Watching clipboard with voice '{voice}' on {device}... (Ctrl+C to stop)")
 
-    state = {"last_seen": None, "pending": None}
+    try:
+        baseline = subprocess.run(["pbpaste"], capture_output=True, text=True, check=True).stdout.strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        baseline = None
+    state = {"last_seen": baseline, "pending": None}
     state_lock = threading.Lock()
     cancel = threading.Event()
     stop_watching = threading.Event()
