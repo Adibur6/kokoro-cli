@@ -30,9 +30,8 @@ def run(
     t0 = time.time()
     pipe = load_pipeline(lang, device)
     t_model = time.time() - t0
-    t_ready = time.time() - t0
 
-    console.print(f"[{t_ready:6.2f}s] model loaded ({t_model:.2f}s) + pipeline ready, device={device}")
+    console.print(f"[{t_model:6.2f}s] model loaded ({t_model:.2f}s) + pipeline ready, device={device}")
 
     rows = []
     for i, (gs, ps, audio) in enumerate(pipe(body, voice=voice_path)):
@@ -62,7 +61,7 @@ def run(
 
     console.print(
         f"\nTIME TO FIRST WORD (cold start): {t_first:.2f}s  "
-        f"(model {t_model:.2f}s + G2P init {t_ready - t_model:.2f}s + first chunk {t_first - t_ready:.2f}s)"
+        f"(model {t_model:.2f}s + first chunk {t_first - t_model:.2f}s)"
     )
     console.print(f"Total audio: {total_dur:.2f}s | all synthesis done @{t_synth_end:.2f}s")
     console.print(f"Inference finished {total_dur - t_synth_end:.2f}s BEFORE playback would end")
