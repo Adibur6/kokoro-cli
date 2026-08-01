@@ -5,34 +5,44 @@ import threading
 import time
 
 WATCH_POLL_SECS = 0.35
+CHANGE_COUNT_SCRIPT = 'ObjC.import("AppKit"); $.NSPasteboard.generalPasteboard.changeCount'
+
+
+def _pasteboard_change_count() -> int | None:
+    """macOS bumps this on every copy, even re-copying identical text — unlike diffing content."""
+    try:
+        result = subprocess.run(
+            ["osascript", "-l", "JavaScript", "-e", CHANGE_COUNT_SCRIPT],
+            capture_output=True, text=True, check=True,
+        )
+        return int(result.stdout.strip())
+    except (subprocess.CalledProcessError, FileNotFoundError, ValueError):
+        return None
 
 
 def watch_clipboard(speak, console, pipe, voice: str, voice_path: str, device: str, speed: float) -> None:
     console.print(f"Watching clipboard with voice '{voice}' on {device}... (Ctrl+C to stop)")
 
-    try:
-        baseline = subprocess.run(["pbpaste"], capture_output=True, text=True, check=True).stdout.strip()
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        baseline = None
-    state = {"last_seen": baseline, "pending": None}
+    state = {"pending": None}
     state_lock = threading.Lock()
     cancel = threading.Event()
     stop_watching = threading.Event()
 
     def poll_clipboard() -> None:
+        last_change_count = _pasteboard_change_count()
         while not stop_watching.is_set():
-            try:
-                clip = subprocess.run(["pbpaste"], capture_output=True, text=True, check=True).stdout
-            except (subprocess.CalledProcessError, FileNotFoundError):
-                clip = ""
-            text = clip.strip()
-            with state_lock:
-                changed = bool(text) and text != state["last_seen"]
-                if changed:
-                    state["last_seen"] = text
-                    state["pending"] = text
-            if changed:
-                cancel.set()
+            change_count = _pasteboard_change_count()
+            if change_count is not None and change_count != last_change_count:
+                last_change_count = change_count
+                try:
+                    clip = subprocess.run(["pbpaste"], capture_output=True, text=True, check=True).stdout
+                except (subprocess.CalledProcessError, FileNotFoundError):
+                    clip = ""
+                text = clip.strip()
+                if text:
+                    with state_lock:
+                        state["pending"] = text
+                    cancel.set()
             stop_watching.wait(WATCH_POLL_SECS)
 
     watcher = threading.Thread(target=poll_clipboard, daemon=True)
