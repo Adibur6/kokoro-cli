@@ -7,7 +7,6 @@ Local text-to-speech using the [Kokoro-82M](https://huggingface.co/hexgrad/Kokor
 ```bash
 # 1. Python environment
 python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
 
 # 2. Install the CLI (editable)
 .venv/bin/pip install -e .
