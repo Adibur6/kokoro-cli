@@ -15,7 +15,13 @@ from rich.progress import (
     TransferSpeedColumn,
 )
 
-from kokoro_cli.config import DATA_DIR, DATA_MODEL_DIR, MANIFEST, PROJECT_MODEL_DIR
+from kokoro_cli.config import (
+    DATA_DIR,
+    DATA_MODEL_DIR,
+    MANIFEST,
+    PROJECT_MODEL_DIR,
+    resolve_model_dir,
+)
 
 REPO_URL = "https://huggingface.co/hexgrad/Kokoro-82M/resolve/main"
 APPROX_SIZE_MB = 330
@@ -126,20 +132,19 @@ def _download(url: str, tmp: str, update, retries: int = 3) -> None:
 
 
 def download_weights(confirmed: bool = False) -> None:
-    """Download model + voices (md5-verified) into the managed data dir."""
+    """Download model + voices (md5-verified) into whichever dir resolve_model_dir() picks."""
     entries = load_manifest()
-    if is_complete(PROJECT_MODEL_DIR):
-        console.print(f"[green]Model already present[/green] in the project dir: {PROJECT_MODEL_DIR}")
-        return
-    if is_complete(DATA_MODEL_DIR):
-        console.print(f"[green]Model already installed[/green] at {DATA_MODEL_DIR}")
+    target_dir = resolve_model_dir()
+    if is_complete(target_dir):
+        location = "the project dir" if target_dir == PROJECT_MODEL_DIR else "the data dir"
+        console.print(f"[green]Model already present[/green] in {location}: {target_dir}")
         return
 
     if not confirmed:
-        if not _confirm(f"Download Kokoro-82M (~{APPROX_SIZE_MB}MB) to {DATA_MODEL_DIR}?"):
+        if not _confirm(f"Download Kokoro-82M (~{APPROX_SIZE_MB}MB) to {target_dir}?"):
             raise SystemExit("Aborted.")
 
-    os.makedirs(DATA_MODEL_DIR, exist_ok=True)
+    os.makedirs(target_dir, exist_ok=True)
     with Progress(
         TextColumn("[progress.description]{task.description}"),
         BarColumn(),
@@ -149,7 +154,7 @@ def download_weights(confirmed: bool = False) -> None:
         console=console,
     ) as progress:
         for want, rel in entries:
-            dest = os.path.join(DATA_MODEL_DIR, rel)
+            dest = os.path.join(target_dir, rel)
             if _complete(dest, want):
                 continue
             os.makedirs(os.path.dirname(dest), exist_ok=True)

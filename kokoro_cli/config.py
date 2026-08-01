@@ -43,9 +43,15 @@ DATA_DIR = data_dir()
 DATA_MODEL_DIR = os.path.join(DATA_DIR, "Kokoro-82M")
 
 
+def _has_model_files(base_dir: str) -> bool:
+    return os.path.isfile(os.path.join(base_dir, "kokoro-v1_0.pth")) and os.path.isfile(
+        os.path.join(base_dir, "config.json")
+    )
+
+
 def resolve_model_dir() -> str:
-    """Prefer a checkout-side model dir; fall back to the managed data dir."""
-    if os.path.isdir(PROJECT_MODEL_DIR):
+    """Prefer a checkout-side model dir if it already has the model files; else the managed data dir."""
+    if _has_model_files(PROJECT_MODEL_DIR):
         return PROJECT_MODEL_DIR
     return DATA_MODEL_DIR
 
