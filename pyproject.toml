@@ -26,3 +26,6 @@ kokoro = "kokoro_cli.app:app"
 
 [tool.setuptools.packages.find]
 include = ["kokoro_cli*"]
+
+[tool.setuptools.package-data]
+kokoro_cli = ["Kokoro-82M.md5"]

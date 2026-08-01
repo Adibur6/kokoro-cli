@@ -12,7 +12,7 @@ warnings.filterwarnings("ignore", message="`torch.nn.utils.weight_norm` is depre
 
 SETUP_HINT = (
     f"Model not found in {MODEL_DIR}. "
-    "Run `./setup_kokoro.sh` from the project root to download it."
+    "Run `kokoro install` to download it."
 )
 
 
