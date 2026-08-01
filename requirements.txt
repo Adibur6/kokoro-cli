@@ -1,0 +1,9 @@
+torch>=2.2
+torchaudio>=2.2
+kokoro>=0.9.4
+misaki>=0.9.4
+soundfile>=0.12
+sounddevice>=0.4.6
+scipy>=1.10
+numpy>=1.24
+spacy>=3.7
