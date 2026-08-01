@@ -1,6 +1,6 @@
 # kokoro-tts
 
-Local text-to-speech using the [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) model, with a planned Chrome extension (WXT + React) to speak selected text.
+Local text-to-speech using the [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) model.
 
 ## Setup
 
@@ -37,7 +37,3 @@ python3 -m venv .venv
 ```
 
 Common options: `--voice` (any name from `Kokoro-82M/voices/`, default `af_heart`), `--lang` (`a` = American English, `b` = British English), `--device` (`cuda`, `mps`, or `cpu`; auto-detected).
-
-## Chrome extension (planned)
-
-See `extension_plan.md`: a WXT + React + Tailwind + shadcn/ui extension with a right-click "Speak selection" menu, backed by a local HTTP server (`server/`, not yet built).
