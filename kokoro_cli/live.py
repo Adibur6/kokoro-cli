@@ -7,13 +7,11 @@ import time
 import numpy as np
 import sounddevice as sd
 import typer
-from rich.console import Console
 
 from kokoro_cli.audio import save_audio, to_int16, trim_silence
+from kokoro_cli.cli_common import prepare_run
 from kokoro_cli.config import SAMPLE_RATE
 from kokoro_cli.model import load_pipeline
-from kokoro_cli.text import load_text
-from kokoro_cli.voices import resolve_voice
 
 BLOCKSIZE = 4096
 
@@ -26,13 +24,7 @@ def run(
     device: str | None = typer.Option(None, "--device", help="cuda, mps or cpu (default: auto)"),
     out: str | None = typer.Option(None, "--out", "-o", help="Also save the full stream to this file"),
 ) -> None:
-    console = Console()
-    body = load_text(text, file)
-    voice_path = resolve_voice(voice)
-
-    from kokoro_cli.config import detect_device
-
-    device = device or detect_device()
+    console, body, voice_path, device = prepare_run(text, file, voice, lang, device)
 
     with console.status("Loading model..."):
         pipe = load_pipeline(lang, device)

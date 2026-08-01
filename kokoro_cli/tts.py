@@ -4,7 +4,6 @@ import time
 
 import numpy as np
 import typer
-from rich.console import Console
 from rich.progress import (
     BarColumn,
     Progress,
@@ -14,10 +13,9 @@ from rich.progress import (
 )
 
 from kokoro_cli.audio import save_audio
+from kokoro_cli.cli_common import prepare_run
 from kokoro_cli.config import OUT_DIR
 from kokoro_cli.model import load_pipeline
-from kokoro_cli.text import load_text
-from kokoro_cli.voices import resolve_voice
 
 
 def run(
@@ -28,13 +26,7 @@ def run(
     device: str | None = typer.Option(None, "--device", help="cuda, mps or cpu (default: auto)"),
     out: str = typer.Option(f"{OUT_DIR}/output.wav", "--out", "-o", help="Output path (.wav/.mp3/.flac/.ogg)"),
 ) -> None:
-    console = Console()
-    body = load_text(text, file)
-    voice_path = resolve_voice(voice)
-
-    from kokoro_cli.config import detect_device
-
-    device = device or detect_device()
+    console, body, voice_path, device = prepare_run(text, file, voice, lang, device)
 
     t0 = time.time()
     with console.status("Loading model..."):

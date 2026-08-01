@@ -4,12 +4,10 @@ import time
 
 import numpy as np
 import typer
-from rich.console import Console
 
+from kokoro_cli.cli_common import prepare_run
 from kokoro_cli.config import SAMPLE_RATE
 from kokoro_cli.model import load_pipeline
-from kokoro_cli.text import load_text
-from kokoro_cli.voices import resolve_voice
 
 
 def run(
@@ -19,13 +17,7 @@ def run(
     lang: str = typer.Option("a", "--lang", help="Language code: a=American English, b=British English"),
     device: str | None = typer.Option(None, "--device", help="cuda, mps or cpu (default: auto)"),
 ) -> None:
-    console = Console()
-    body = load_text(text, file)
-    voice_path = resolve_voice(voice)
-
-    from kokoro_cli.config import detect_device
-
-    device = device or detect_device()
+    console, body, voice_path, device = prepare_run(text, file, voice, lang, device)
 
     t0 = time.time()
     pipe = load_pipeline(lang, device)
