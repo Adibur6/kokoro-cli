@@ -1,6 +1,6 @@
 # kokoro-tts
 
-Local text-to-speech using the [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) model.
+Local text-to-speech using the [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) model, wrapped in a single `kokoro` CLI.
 
 ## Setup
 
@@ -9,31 +9,43 @@ Local text-to-speech using the [Kokoro-82M](https://huggingface.co/hexgrad/Kokor
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 
-# 2. Download the model + voices (curl, md5-verified)
+# 2. Install the CLI (editable)
+.venv/bin/pip install -e .
+
+# 3. Download the model + voices (curl, md5-verified)
 ./setup_kokoro.sh
 ```
 
 `setup_kokoro.sh` downloads only files that are missing or whose md5 doesn't match the expected hashes in `Kokoro-82M.md5`.
 
-## Scripts
+## Commands
 
-| Script | Purpose |
+| Command | Purpose |
 |---|---|
-| `tts.py` | Generate speech to a `.wav` file |
-| `tts_live.py` | Stream speech live to speakers, sentence by sentence |
-| `tts_profiler.py` | Benchmark the pipeline |
+| `kokoro tts "text"` | Generate speech to a file (wav/mp3/flac/ogg) |
+| `kokoro live "text"` | Stream speech live to speakers, sentence by sentence |
+| `kokoro profile "text"` | Benchmark the pipeline |
+| `kokoro voices` | List available voices |
 
-### Usage
+Run `kokoro --help` for options on any command.
+
+### Examples
 
 ```bash
 # Save speech to output/output.wav
-.venv/bin/python tts.py "Hello, world." --voice af_heart
+kokoro tts "Hello, world." --voice af_heart
 
 # Stream to speakers
-.venv/bin/python tts_live.py "Hello, world."
+kokoro live "Hello, world."
 
-# Read from a file
-.venv/bin/python tts_live.py --file samples/migration.txt
+# Read from a file, write mp3
+kokoro tts --file samples/migration.txt --out output/migration.mp3
+
+# Read from stdin
+echo "Hello from stdin" | kokoro tts -
+
+# List voices
+kokoro voices
 ```
 
-Common options: `--voice` (any name from `Kokoro-82M/voices/`, default `af_heart`), `--lang` (`a` = American English, `b` = British English), `--device` (`cuda`, `mps`, or `cpu`; auto-detected).
+Common options: `--voice` (any name from `Kokoro-82M/voices/`, default `af_heart`), `--lang` (`a` = American English, `b` = British English, plus `e`/`f`/`h`/`i`/`j`/`p`/`z` for Spanish/French/Hindi/Italian/Japanese/Portuguese/Chinese), `--device` (`cuda`, `mps`, or `cpu`; auto-detected).

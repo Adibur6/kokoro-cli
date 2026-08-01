@@ -4,6 +4,7 @@
 samples/
 __pycache__/
 *.pyc
+*.egg-info/
 output/
 Kokoro-82M/
 extension/node_modules/

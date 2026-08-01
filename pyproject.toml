@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kokoro-cli"
+version = "0.1.0"
+description = "Local Kokoro-82M text-to-speech CLI"
+requires-python = ">=3.10"
+dependencies = [
+    "torch>=2.2",
+    "torchaudio>=2.2",
+    "kokoro>=0.9.4",
+    "misaki>=0.9.4",
+    "soundfile>=0.12",
+    "sounddevice>=0.4.6",
+    "scipy>=1.10",
+    "numpy>=1.24",
+    "spacy>=3.7",
+    "typer>=0.12",
+    "rich>=13",
+]
+
+[project.scripts]
+kokoro = "kokoro_cli.app:app"
+
+[tool.setuptools.packages.find]
+include = ["kokoro_cli*"]
