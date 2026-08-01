@@ -9,7 +9,6 @@ from rich.progress import (
     Progress,
     SpinnerColumn,
     TextColumn,
-    TimeElapsedColumn,
 )
 
 from kokoro_cli.audio import save_audio
@@ -33,19 +32,22 @@ def run(
         pipe = load_pipeline(lang, device)
 
     chunks: list[np.ndarray] = []
+    # The pipeline streams chunks without reporting a total up front, so an
+    # indeterminate bar (spinner + elapsed time) is used instead of a fake
+    # percentage that would otherwise sit at 0% and jump straight to 100%.
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
-        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-        TimeElapsedColumn(),
+        BarColumn(bar_width=30, style="bar.back", complete_style="bar.complete"),
+        "•",
+        TextColumn("[progress.elapsed]{task.elapsed:>5.1f}s"),
         console=console,
     ) as progress:
         task = progress.add_task("Synthesizing...", total=None)
         for _gs, _ps, audio in pipe(body, voice=voice_path):
             chunks.append(np.asarray(audio.cpu().numpy(), dtype=np.float32))
-            progress.update(task, total=len(chunks))
-        progress.update(task, completed=len(chunks), total=len(chunks))
+            progress.update(task)
+        progress.stop_task(task)
 
     wav = np.concatenate(chunks)
     save_audio(wav, out)
