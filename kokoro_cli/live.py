@@ -7,31 +7,34 @@ import time
 import numpy as np
 import sounddevice as sd
 import typer
+from rich.console import Console
 from rich.live import Live
 
 from kokoro_cli.audio import save_audio, to_int16, trim_silence
 from kokoro_cli.cli_common import prepare_run
-from kokoro_cli.config import SAMPLE_RATE
+from kokoro_cli.config import SAMPLE_RATE, detect_device
 from kokoro_cli.live_display import Segment, render_display, split_into_segments
+from kokoro_cli.live_watch import watch_clipboard
 from kokoro_cli.model import load_pipeline
+from kokoro_cli.voices import resolve_voice
 
 BLOCKSIZE = 4096
 
 
-def run(
-    text: str | None = typer.Argument(None, help="Text to speak (or use --file)"),
-    file: list[str] = typer.Option([], "--file", "-f", help="Read text from a file (repeatable)"),
-    voice: str = typer.Option("af_heart", "--voice", "-v", help="Voice name in Kokoro-82M/voices"),
-    lang: str = typer.Option("a", "--lang", help="Language code: a=American English, b=British English"),
-    device: str | None = typer.Option(None, "--device", help="cuda, mps or cpu (default: auto)"),
-    speed: float = typer.Option(1.0, "--speed", min=0.25, max=4.0, help="Speech speed multiplier"),
-    out: str | None = typer.Option(None, "--out", "-o", help="Also save the full stream to this file"),
-) -> None:
-    console, body, voice_path, device = prepare_run(text, file, voice, lang, device)
-
-    with console.status("Loading model..."):
-        pipe = load_pipeline(lang, device)
-
+def speak(
+    console,
+    pipe,
+    voice: str,
+    voice_path: str,
+    device: str,
+    speed: float,
+    body: str,
+    *,
+    out: str | None = None,
+    cancel: threading.Event | None = None,
+) -> bool:
+    """Synthesize and play one utterance with the live animation. Returns True on Ctrl+C."""
+    cancel = cancel or threading.Event()
     console.print(f"Streaming with voice '{voice}' on {device}... (Ctrl+C to stop)")
 
     total_chars = len(body)
@@ -46,6 +49,8 @@ def run(
     def producer() -> None:
         chunk_id = 0
         for result in pipe(body, voice=voice_path, speed=speed):
+            if cancel.is_set():
+                break
             a = np.asarray(result.audio.cpu().numpy(), dtype=np.float32)
             a = trim_silence(a)
             with chunks_lock:
@@ -92,10 +97,13 @@ def run(
     )
     t0 = time.time()
     stream.start()
+    interrupted = False
     try:
         with Live(console=console, refresh_per_second=12, transient=True) as live:
-            while not done.is_set() or not audio_q.empty() or (
-                state["current"] is not None and len(state["current"]) > 0
+            while not cancel.is_set() and (
+                not done.is_set() or not audio_q.empty() or (
+                    state["current"] is not None and len(state["current"]) > 0
+                )
             ):
                 with segments_lock:
                     snapshot = list(segments)
@@ -108,10 +116,14 @@ def run(
                 estimated_total = (sum(durations) / synth_chars * total_chars) if synth_chars else None
                 live.update(render_display(snapshot, cur_chunk_id, elapsed, played_secs, estimated_total))
                 time.sleep(0.05)
-        thread.join()
     except KeyboardInterrupt:
+        interrupted = True
+        cancel.set()
         console.print("\n[yellow]Interrupted.[/yellow] Stopping playback...")
-    stream.stop()
+    finally:
+        stream.stop()
+        stream.close()
+        thread.join()
 
     with chunks_lock:
         total = sum(len(c) for c in chunks) / SAMPLE_RATE
@@ -121,3 +133,36 @@ def run(
         wav = np.concatenate(chunks)
         save_audio(wav, out)
         console.print(f"Saved {len(wav) / SAMPLE_RATE:.2f}s of audio to {out}")
+
+    return interrupted
+
+
+def run(
+    text: str | None = typer.Argument(None, help="Text to speak (or use --file)"),
+    file: list[str] = typer.Option([], "--file", "-f", help="Read text from a file (repeatable)"),
+    voice: str = typer.Option("af_heart", "--voice", "-v", help="Voice name in Kokoro-82M/voices"),
+    lang: str = typer.Option("a", "--lang", help="Language code: a=American English, b=British English"),
+    device: str | None = typer.Option(None, "--device", help="cuda, mps or cpu (default: auto)"),
+    speed: float = typer.Option(1.0, "--speed", min=0.25, max=4.0, help="Speech speed multiplier"),
+    out: str | None = typer.Option(None, "--out", "-o", help="Also save the full stream to this file"),
+    watch: bool = typer.Option(
+        False, "--watch", help="Watch the clipboard and speak newly copied text (Ctrl+C to stop)"
+    ),
+) -> None:
+    if watch:
+        if text or file:
+            raise SystemExit("--watch reads from the clipboard; don't pass text or --file.")
+        if out:
+            raise SystemExit("--watch doesn't support --out (there's no single utterance to save).")
+        console = Console()
+        voice_path = resolve_voice(voice)
+        device = device or detect_device()
+        with console.status("Loading model..."):
+            pipe = load_pipeline(lang, device)
+        watch_clipboard(speak, console, pipe, voice, voice_path, device, speed)
+        return
+
+    console, body, voice_path, device = prepare_run(text, file, voice, lang, device)
+    with console.status("Loading model..."):
+        pipe = load_pipeline(lang, device)
+    speak(console, pipe, voice, voice_path, device, speed, body, out=out)
