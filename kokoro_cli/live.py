@@ -28,7 +28,7 @@ def run(
 ) -> None:
     console = Console()
     body = load_text(text, file)
-    resolve_voice(voice)
+    voice_path = resolve_voice(voice)
 
     from kokoro_cli.config import detect_device
 
@@ -36,7 +36,6 @@ def run(
 
     with console.status("Loading model..."):
         pipe = load_pipeline(lang, device)
-    voice_path = resolve_voice(voice)
 
     console.print(f"Streaming with voice '{voice}' on {device}... (Ctrl+C to stop)")
 

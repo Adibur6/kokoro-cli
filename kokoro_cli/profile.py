@@ -21,7 +21,7 @@ def run(
 ) -> None:
     console = Console()
     body = load_text(text, file)
-    resolve_voice(voice)
+    voice_path = resolve_voice(voice)
 
     from kokoro_cli.config import detect_device
 
@@ -31,7 +31,6 @@ def run(
     pipe = load_pipeline(lang, device)
     t_model = time.time() - t0
     t_ready = time.time() - t0
-    voice_path = resolve_voice(voice)
 
     console.print(f"[{t_ready:6.2f}s] model loaded ({t_model:.2f}s) + pipeline ready, device={device}")
 

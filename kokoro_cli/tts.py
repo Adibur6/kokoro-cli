@@ -30,7 +30,7 @@ def run(
 ) -> None:
     console = Console()
     body = load_text(text, file)
-    resolve_voice(voice)
+    voice_path = resolve_voice(voice)
 
     from kokoro_cli.config import detect_device
 
@@ -39,7 +39,6 @@ def run(
     t0 = time.time()
     with console.status("Loading model..."):
         pipe = load_pipeline(lang, device)
-    voice_path = resolve_voice(voice)
 
     chunks: list[np.ndarray] = []
     with Progress(
