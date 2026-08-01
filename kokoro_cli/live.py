@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import queue
+import select
+import sys
+import termios
 import threading
 import time
+import tty
 
 import numpy as np
 import sounddevice as sd
@@ -19,6 +23,29 @@ from kokoro_cli.model import load_pipeline
 from kokoro_cli.voices import resolve_voice
 
 BLOCKSIZE = 4096
+SPACE = " "
+ESC = "\x1b"
+
+
+def listen_for_keys(cancel: threading.Event, paused: threading.Event, stop_listening: threading.Event) -> None:
+    """Space toggles pause, Esc cancels. No-op outside a real terminal."""
+    if not sys.stdin.isatty():
+        return
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    try:
+        tty.setcbreak(fd)
+        while not stop_listening.is_set():
+            ready, _, _ = select.select([sys.stdin], [], [], 0.2)
+            if not ready:
+                continue
+            ch = sys.stdin.read(1)
+            if ch == SPACE:
+                paused.clear() if paused.is_set() else paused.set()
+            elif ch == ESC:
+                cancel.set()
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
 
 def speak(
@@ -35,7 +62,9 @@ def speak(
 ) -> bool:
     """Synthesize and play one utterance with the live animation. Returns True on Ctrl+C."""
     cancel = cancel or threading.Event()
-    console.print(f"Streaming with voice '{voice}' on {device}... (Ctrl+C to stop)")
+    paused = threading.Event()
+    stop_listening = threading.Event()
+    console.print(f"Streaming with voice '{voice}' on {device}... (Ctrl+C to stop, Space to pause, Esc to skip)")
 
     total_chars = len(body)
     audio_q: queue.Queue = queue.Queue()
@@ -66,10 +95,15 @@ def speak(
 
     thread = threading.Thread(target=producer, daemon=True)
     thread.start()
+    key_listener = threading.Thread(target=listen_for_keys, args=(cancel, paused, stop_listening), daemon=True)
+    key_listener.start()
 
     state = {"current": None, "chunk_id": None, "played": 0}
 
     def callback(outdata, frames, time_info, status) -> None:
+        if paused.is_set():
+            outdata.fill(0)
+            return
         cur = state["current"]
         if cur is None or len(cur) == 0:
             try:
@@ -114,16 +148,22 @@ def speak(
                 elapsed = state["played"] / SAMPLE_RATE
                 played_secs = (sum(durations[:cur_chunk_id]) + elapsed) if cur_chunk_id is not None else 0.0
                 estimated_total = (sum(durations) / synth_chars * total_chars) if synth_chars else None
-                live.update(render_display(snapshot, cur_chunk_id, elapsed, played_secs, estimated_total))
+                live.update(
+                    render_display(
+                        snapshot, cur_chunk_id, elapsed, played_secs, estimated_total, paused=paused.is_set()
+                    )
+                )
                 time.sleep(0.05)
     except KeyboardInterrupt:
         interrupted = True
         cancel.set()
         console.print("\n[yellow]Interrupted.[/yellow] Stopping playback...")
     finally:
+        stop_listening.set()
         stream.stop()
         stream.close()
         thread.join()
+        key_listener.join(timeout=1)
 
     with chunks_lock:
         total = sum(len(c) for c in chunks) / SAMPLE_RATE

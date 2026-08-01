@@ -81,18 +81,19 @@ def format_duration(seconds: float) -> str:
     return f"{m}:{s:02d}"
 
 
-def render_progress(played_secs: float, estimated_total: float | None):
+def render_progress(played_secs: float, estimated_total: float | None, *, paused: bool = False):
     """Bar + ETA, extrapolated from the speech rate (seconds/char) observed so far."""
     if not estimated_total:
         return Text(" Estimating...", style="dim")
     fraction = max(0.0, min(played_secs / estimated_total, 1.0))
     remaining = format_duration(estimated_total - played_secs)
+    label = "⏸ Paused — Space to resume" if paused else f"{fraction * 100:4.0f}%  ETA {remaining}"
     row = Table.grid(padding=(0, 1))
     row.add_column()
     row.add_column()
     row.add_row(
         ProgressBar(total=1.0, completed=fraction, width=MAX_WIDTH - 24),
-        Text(f"{fraction * 100:4.0f}%  ETA {remaining}", style="dim"),
+        Text(label, style="yellow bold" if paused else "dim"),
     )
     return row
 
@@ -103,5 +104,7 @@ def render_display(
     elapsed: float,
     played_secs: float,
     estimated_total: float | None,
+    *,
+    paused: bool = False,
 ):
-    return Group(render_frame(segments, chunk_id, elapsed), render_progress(played_secs, estimated_total))
+    return Group(render_frame(segments, chunk_id, elapsed), render_progress(played_secs, estimated_total, paused=paused))
