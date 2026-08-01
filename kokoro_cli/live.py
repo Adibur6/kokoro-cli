@@ -12,7 +12,7 @@ from rich.live import Live
 from kokoro_cli.audio import save_audio, to_int16, trim_silence
 from kokoro_cli.cli_common import prepare_run
 from kokoro_cli.config import SAMPLE_RATE
-from kokoro_cli.live_display import Segment, render_frame, split_into_segments
+from kokoro_cli.live_display import Segment, render_display, split_into_segments
 from kokoro_cli.model import load_pipeline
 
 BLOCKSIZE = 4096
@@ -33,8 +33,10 @@ def run(
 
     console.print(f"Streaming with voice '{voice}' on {device}... (Ctrl+C to stop)")
 
+    total_chars = len(body)
     audio_q: queue.Queue = queue.Queue()
     chunks: list[np.ndarray] = []
+    chunk_chars: list[int] = []
     chunks_lock = threading.Lock()
     segments: list[Segment] = []
     segments_lock = threading.Lock()
@@ -47,6 +49,7 @@ def run(
             a = trim_silence(a)
             with chunks_lock:
                 chunks.append(a)
+                chunk_chars.append(len(result.graphemes))
             if result.tokens:
                 with segments_lock:
                     segments.extend(split_into_segments(chunk_id, result.tokens))
@@ -95,8 +98,14 @@ def run(
             ):
                 with segments_lock:
                     snapshot = list(segments)
+                with chunks_lock:
+                    durations = [len(c) / SAMPLE_RATE for c in chunks]
+                    synth_chars = sum(chunk_chars)
+                cur_chunk_id = state["chunk_id"]
                 elapsed = state["played"] / SAMPLE_RATE
-                live.update(render_frame(snapshot, state["chunk_id"], elapsed))
+                played_secs = (sum(durations[:cur_chunk_id]) + elapsed) if cur_chunk_id is not None else 0.0
+                estimated_total = (sum(durations) / synth_chars * total_chars) if synth_chars else None
+                live.update(render_display(snapshot, cur_chunk_id, elapsed, played_secs, estimated_total))
                 time.sleep(0.05)
         thread.join()
     except KeyboardInterrupt:

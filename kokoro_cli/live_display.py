@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from rich.console import Group
 from rich.panel import Panel
+from rich.progress_bar import ProgressBar
+from rich.table import Table
 from rich.text import Text
 
 SENTENCE_END = (".", "!", "?")
@@ -71,3 +74,34 @@ def render_frame(segments: list[Segment], chunk_id: int | None, elapsed: float):
         if offset != 1:
             frame.append("\n")
     return Panel(frame, border_style="cyan", width=MAX_WIDTH)
+
+
+def format_duration(seconds: float) -> str:
+    m, s = divmod(max(0, int(seconds)), 60)
+    return f"{m}:{s:02d}"
+
+
+def render_progress(played_secs: float, estimated_total: float | None):
+    """Bar + ETA, extrapolated from the speech rate (seconds/char) observed so far."""
+    if not estimated_total:
+        return Text(" Estimating...", style="dim")
+    fraction = max(0.0, min(played_secs / estimated_total, 1.0))
+    remaining = format_duration(estimated_total - played_secs)
+    row = Table.grid(padding=(0, 1))
+    row.add_column()
+    row.add_column()
+    row.add_row(
+        ProgressBar(total=1.0, completed=fraction, width=MAX_WIDTH - 24),
+        Text(f"{fraction * 100:4.0f}%  ETA {remaining}", style="dim"),
+    )
+    return row
+
+
+def render_display(
+    segments: list[Segment],
+    chunk_id: int | None,
+    elapsed: float,
+    played_secs: float,
+    estimated_total: float | None,
+):
+    return Group(render_frame(segments, chunk_id, elapsed), render_progress(played_secs, estimated_total))
