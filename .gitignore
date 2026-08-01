@@ -1,5 +1,6 @@
 .env
 .venv/
+.opencode/
 samples/
 __pycache__/
 *.pyc
