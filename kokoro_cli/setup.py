@@ -18,7 +18,6 @@ from rich.progress import (
 from kokoro_cli.config import (
     DATA_DIR,
     DATA_MODEL_DIR,
-    MANIFEST,
     PROJECT_MODEL_DIR,
     resolve_model_dir,
 )
@@ -30,11 +29,9 @@ console = Console()
 
 
 def _manifest_path() -> str:
-    if os.path.isfile(MANIFEST):
-        return MANIFEST
-    shipped = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Kokoro-82M.md5")
-    if os.path.isfile(shipped):
-        return shipped
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "Kokoro-82M.md5")
+    if os.path.isfile(path):
+        return path
     raise SystemExit("Manifest Kokoro-82M.md5 not found.")
 
 

@@ -8,7 +8,6 @@ SAMPLE_RATE = 24000
 DEFAULT_VOICE = "af_heart"
 
 PROJECT_MODEL_DIR = os.path.join(ROOT, "Kokoro-82M")
-MANIFEST = os.path.join(ROOT, "Kokoro-82M.md5")
 
 LANG_CODES = {
     "a": "American English",
