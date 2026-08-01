@@ -24,6 +24,7 @@ def run(
     voice: str = typer.Option("af_heart", "--voice", "-v", help="Voice name in Kokoro-82M/voices"),
     lang: str = typer.Option("a", "--lang", help="Language code: a=American English, b=British English"),
     device: str | None = typer.Option(None, "--device", help="cuda, mps or cpu (default: auto)"),
+    speed: float = typer.Option(1.0, "--speed", min=0.25, max=4.0, help="Speech speed multiplier"),
     out: str | None = typer.Option(None, "--out", "-o", help="Also save the full stream to this file"),
 ) -> None:
     console, body, voice_path, device = prepare_run(text, file, voice, lang, device)
@@ -44,7 +45,7 @@ def run(
 
     def producer() -> None:
         chunk_id = 0
-        for result in pipe(body, voice=voice_path):
+        for result in pipe(body, voice=voice_path, speed=speed):
             a = np.asarray(result.audio.cpu().numpy(), dtype=np.float32)
             a = trim_silence(a)
             with chunks_lock:
