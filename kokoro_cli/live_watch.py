@@ -6,6 +6,15 @@ import time
 
 WATCH_POLL_SECS = 0.35
 CHANGE_COUNT_SCRIPT = 'ObjC.import("AppKit"); $.NSPasteboard.generalPasteboard.changeCount'
+SNIPPET_LIMIT = 60
+
+
+def _snippet(text: str, limit: int = SNIPPET_LIMIT) -> str:
+    """One-line, whitespace-collapsed preview of clipboard text for the watch log."""
+    collapsed = " ".join(text.split())
+    if len(collapsed) <= limit:
+        return f'"{collapsed}"'
+    return f'"{collapsed[:limit].rstrip()}…"'
 
 
 def _pasteboard_change_count() -> int | None:
@@ -21,7 +30,10 @@ def _pasteboard_change_count() -> int | None:
 
 
 def watch_clipboard(speak, console, pipe, voice: str, voice_path: str, device: str, speed: float) -> None:
-    console.print(f"Watching clipboard with voice '{voice}' on {device}... (Ctrl+C to stop)")
+    console.print(
+        f"Watching clipboard with voice '{voice}' on {device}... "
+        "(Ctrl+C to stop, Space to pause, Esc to skip)"
+    )
 
     state = {"pending": None}
     state_lock = threading.Lock()
@@ -48,17 +60,29 @@ def watch_clipboard(speak, console, pipe, voice: str, voice_path: str, device: s
     watcher = threading.Thread(target=poll_clipboard, daemon=True)
     watcher.start()
 
+    spoken_count = 0
+    idle_status = None
     try:
         while True:
             with state_lock:
                 cancel.clear()
                 next_text, state["pending"] = state["pending"], None
             if next_text is None:
+                if idle_status is None:
+                    idle_status = console.status(f"Watching for the next clip... ({spoken_count} spoken)")
+                    idle_status.start()
                 time.sleep(WATCH_POLL_SECS)
                 continue
-            if speak(console, pipe, voice, voice_path, device, speed, next_text, cancel=cancel):
+            if idle_status is not None:
+                idle_status.stop()
+                idle_status = None
+            spoken_count += 1
+            console.print(f"[cyan]▶[/cyan] #{spoken_count}  {_snippet(next_text)}")
+            if speak(console, pipe, voice, voice_path, device, speed, next_text, cancel=cancel, announce=False):
                 break
     except KeyboardInterrupt:
         console.print("\n[yellow]Interrupted.[/yellow] Stopping watch mode...")
     finally:
+        if idle_status is not None:
+            idle_status.stop()
         stop_watching.set()

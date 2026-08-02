@@ -59,12 +59,14 @@ def speak(
     *,
     out: str | None = None,
     cancel: threading.Event | None = None,
+    announce: bool = True,
 ) -> bool:
     """Synthesize and play one utterance with the live animation. Returns True on Ctrl+C."""
     cancel = cancel or threading.Event()
     paused = threading.Event()
     stop_listening = threading.Event()
-    console.print(f"Streaming with voice '{voice}' on {device}... (Ctrl+C to stop, Space to pause, Esc to skip)")
+    if announce:
+        console.print(f"Streaming with voice '{voice}' on {device}... (Ctrl+C to stop, Space to pause, Esc to skip)")
 
     total_chars = len(body)
     audio_q: queue.Queue = queue.Queue()
