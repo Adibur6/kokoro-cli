@@ -55,7 +55,7 @@ def render_line(tokens, *, elapsed: float | None = None, dim: bool = False) -> T
     return line
 
 
-def render_frame(segments: list[Segment], chunk_id: int | None, elapsed: float, *, title: str | None = None):
+def _render_text_frame(segments: list[Segment], chunk_id: int | None, elapsed: float) -> Text:
     if chunk_id is None:
         return Text("Synthesizing...", style="dim italic")
     in_chunk = [i for i, s in enumerate(segments) if s.chunk_id == chunk_id]
@@ -76,7 +76,7 @@ def render_frame(segments: list[Segment], chunk_id: int | None, elapsed: float, 
             frame.append(render_line(segments[i].tokens, elapsed=elapsed if offset == 0 else None, dim=offset != 0))
         if offset != offsets[-1]:
             frame.append("\n")
-    return Panel(frame, title=title, title_align="left", border_style="cyan", width=MAX_WIDTH)
+    return frame
 
 
 def format_duration(seconds: float) -> str:
@@ -139,8 +139,11 @@ def render_display(
     *,
     paused: bool = False,
     title: str | None = None,
-):
-    return Group(
-        render_frame(segments, chunk_id, elapsed, title=title),
+) -> Panel:
+    """Sentence window and progress bar as one bordered unit, not two disconnected blocks."""
+    body = Group(
+        _render_text_frame(segments, chunk_id, elapsed),
+        Text(),
         render_progress(played_secs, estimated_total, paused=paused),
     )
+    return Panel(body, title=title, title_align="left", border_style="cyan", width=MAX_WIDTH)
