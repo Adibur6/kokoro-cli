@@ -28,7 +28,7 @@ def run(
     console, body, voice_path, device = prepare_run(text, file, voice, lang, device)
 
     t0 = time.time()
-    with console.status("Loading model..."):
+    with console.status("Loading model...", spinner_style="cyan"):
         pipe = load_pipeline(lang, device)
 
     chunks: list[np.ndarray] = []

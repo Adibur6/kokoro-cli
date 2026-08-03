@@ -208,12 +208,12 @@ def run(
         console = Console()
         voice_path = resolve_voice(voice)
         device = device or detect_device()
-        with console.status("Loading model..."):
+        with console.status("Loading model...", spinner_style="cyan"):
             pipe = load_pipeline(lang, device)
         watch_clipboard(speak, console, pipe, voice, voice_path, device, speed)
         return
 
     console, body, voice_path, device = prepare_run(text, file, voice, lang, device)
-    with console.status("Loading model..."):
+    with console.status("Loading model...", spinner_style="cyan"):
         pipe = load_pipeline(lang, device)
     speak(console, pipe, voice, voice_path, device, speed, body, out=out)

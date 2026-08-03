@@ -101,6 +101,21 @@ def render_progress(played_secs: float, estimated_total: float | None, *, paused
     return row
 
 
+def render_watch_header(voice: str, device: str) -> Panel:
+    body = Text()
+    body.append("Voice ", style="dim")
+    body.append(voice, style="cyan bold")
+    body.append("   Device ", style="dim")
+    body.append(device, style="cyan bold")
+    body.append("\n")
+    for i, (key, action) in enumerate((("Ctrl+C", "stop"), ("Space", "pause"), ("Esc", "skip"))):
+        if i:
+            body.append("   ", style="dim")
+        body.append(key, style="cyan bold")
+        body.append(f" {action}", style="dim")
+    return Panel(body, title="kokoro live --watch", title_align="left", border_style="cyan", width=MAX_WIDTH)
+
+
 HISTORY_NUM_WIDTH = 3
 HISTORY_SNIPPET_WIDTH = 56
 HISTORY_DURATION_WIDTH = 8

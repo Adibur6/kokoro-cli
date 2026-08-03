@@ -7,7 +7,7 @@ import threading
 import time
 from collections.abc import Iterator
 
-from kokoro_cli.live_display import render_history_header, render_history_row
+from kokoro_cli.live_display import render_history_header, render_history_row, render_watch_header
 
 WATCH_POLL_SECS = 0.35
 MAX_MONITOR_RESTARTS = 3
@@ -102,10 +102,7 @@ def _iter_polled_changes(stop_watching: threading.Event) -> Iterator[int]:
 
 
 def watch_clipboard(speak, console, pipe, voice: str, voice_path: str, device: str, speed: float) -> None:
-    console.print(
-        f"Watching clipboard with voice '{voice}' on {device}... "
-        "(Ctrl+C to stop, Space to pause, Esc to skip)"
-    )
+    console.print(render_watch_header(voice, device))
 
     state = {"pending": None}
     state_lock = threading.Lock()
@@ -158,7 +155,11 @@ def watch_clipboard(speak, console, pipe, voice: str, voice_path: str, device: s
                 next_text, state["pending"] = state["pending"], None
             if next_text is None:
                 if idle_status is None:
-                    idle_status = console.status(f"Watching for the next clip... ({spoken_count} spoken)")
+                    idle_status = console.status(
+                        f"Watching for the next clip... [cyan]({spoken_count} spoken)[/cyan]",
+                        spinner="dots",
+                        spinner_style="cyan",
+                    )
                     idle_status.start()
                 time.sleep(WATCH_POLL_SECS)
                 continue
