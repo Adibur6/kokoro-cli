@@ -7,6 +7,8 @@ import threading
 import time
 from collections.abc import Iterator
 
+from kokoro_cli.live_display import render_history_header, render_history_row
+
 WATCH_POLL_SECS = 0.35
 MAX_MONITOR_RESTARTS = 3
 MONITOR_RESTART_DELAY_SECS = 0.5
@@ -164,8 +166,16 @@ def watch_clipboard(speak, console, pipe, voice: str, voice_path: str, device: s
                 idle_status.stop()
                 idle_status = None
             spoken_count += 1
-            console.print(f"[cyan]▶[/cyan] #{spoken_count}  {_snippet(next_text)}")
-            if speak(console, pipe, voice, voice_path, device, speed, next_text, cancel=cancel, announce=False):
+            stats: dict = {}
+            interrupted = speak(
+                console, pipe, voice, voice_path, device, speed, next_text,
+                cancel=cancel, announce=False, report_done=False, stats=stats, title=f"#{spoken_count}",
+            )
+            if spoken_count == 1:
+                console.print(render_history_header())
+            console.print(render_history_row(spoken_count, _snippet(next_text), stats.get("total", 0.0)))
+            console.print()
+            if interrupted:
                 break
     except KeyboardInterrupt:
         console.print("\n[yellow]Interrupted.[/yellow] Stopping watch mode...")

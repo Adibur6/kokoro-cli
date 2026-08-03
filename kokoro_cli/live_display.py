@@ -54,7 +54,7 @@ def render_line(tokens, *, elapsed: float | None = None, dim: bool = False) -> T
     return line
 
 
-def render_frame(segments: list[Segment], chunk_id: int | None, elapsed: float):
+def render_frame(segments: list[Segment], chunk_id: int | None, elapsed: float, *, title: str | None = None):
     if chunk_id is None:
         return Text("Synthesizing...", style="dim italic")
     in_chunk = [i for i, s in enumerate(segments) if s.chunk_id == chunk_id]
@@ -73,7 +73,7 @@ def render_frame(segments: list[Segment], chunk_id: int | None, elapsed: float):
             frame.append(render_line(segments[i].tokens, elapsed=elapsed if offset == 0 else None, dim=offset != 0))
         if offset != 1:
             frame.append("\n")
-    return Panel(frame, border_style="cyan", width=MAX_WIDTH)
+    return Panel(frame, title=title, title_align="left", border_style="cyan", width=MAX_WIDTH)
 
 
 def format_duration(seconds: float) -> str:
@@ -98,6 +98,35 @@ def render_progress(played_secs: float, estimated_total: float | None, *, paused
     return row
 
 
+HISTORY_NUM_WIDTH = 3
+HISTORY_SNIPPET_WIDTH = 56
+HISTORY_DURATION_WIDTH = 8
+
+
+def _history_grid() -> Table:
+    grid = Table.grid(padding=(0, 1))
+    grid.add_column(width=HISTORY_NUM_WIDTH, justify="right")
+    grid.add_column(width=HISTORY_SNIPPET_WIDTH, no_wrap=True, overflow="ellipsis")
+    grid.add_column(width=HISTORY_DURATION_WIDTH, justify="right")
+    return grid
+
+
+def render_history_header() -> Table:
+    grid = _history_grid()
+    grid.add_row(Text("#", style="dim"), Text("Clip", style="dim"), Text("Duration", style="dim"))
+    return grid
+
+
+def render_history_row(index: int, snippet: str, duration: float) -> Table:
+    grid = _history_grid()
+    grid.add_row(
+        Text(str(index), style="cyan bold"),
+        Text(snippet, style="dim"),
+        Text(f"{duration:.2f}s", style="dim"),
+    )
+    return grid
+
+
 def render_display(
     segments: list[Segment],
     chunk_id: int | None,
@@ -106,5 +135,9 @@ def render_display(
     estimated_total: float | None,
     *,
     paused: bool = False,
+    title: str | None = None,
 ):
-    return Group(render_frame(segments, chunk_id, elapsed), render_progress(played_secs, estimated_total, paused=paused))
+    return Group(
+        render_frame(segments, chunk_id, elapsed, title=title),
+        render_progress(played_secs, estimated_total, paused=paused),
+    )

@@ -60,6 +60,9 @@ def speak(
     out: str | None = None,
     cancel: threading.Event | None = None,
     announce: bool = True,
+    report_done: bool = True,
+    stats: dict | None = None,
+    title: str | None = None,
 ) -> bool:
     """Synthesize and play one utterance with the live animation. Returns True on Ctrl+C."""
     cancel = cancel or threading.Event()
@@ -152,7 +155,8 @@ def speak(
                 estimated_total = (sum(durations) / synth_chars * total_chars) if synth_chars else None
                 live.update(
                     render_display(
-                        snapshot, cur_chunk_id, elapsed, played_secs, estimated_total, paused=paused.is_set()
+                        snapshot, cur_chunk_id, elapsed, played_secs, estimated_total,
+                        paused=paused.is_set(), title=title,
                     )
                 )
                 time.sleep(0.05)
@@ -169,7 +173,12 @@ def speak(
 
     with chunks_lock:
         total = sum(len(c) for c in chunks) / SAMPLE_RATE
-    console.print(f"Done. {total:.2f}s of audio streamed in {time.time() - t0:.2f}s.")
+    elapsed = time.time() - t0
+    if stats is not None:
+        stats["total"] = total
+        stats["elapsed"] = elapsed
+    if report_done:
+        console.print(f"Done. {total:.2f}s of audio streamed in {elapsed:.2f}s.")
 
     if out and chunks:
         wav = np.concatenate(chunks)
