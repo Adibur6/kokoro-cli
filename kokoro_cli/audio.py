@@ -32,9 +32,9 @@ def trim_silence(
 ) -> np.ndarray:
     """Trim trailing (and all but the first chunk's leading) near-silence."""
     cutoff = int(trim_secs * sample_rate)
-    i = len(audio) - 1
-    end = max(i - cutoff, 0)
-    while i > end and abs(audio[i]) < threshold:
-        i -= 1
+    n = len(audio)
+    end = max(n - 1 - cutoff, 0)
+    above = np.flatnonzero(np.abs(audio[end:n]) >= threshold)
+    i = end + int(above[-1]) if above.size else end
     tail = int(keep_tail_secs * sample_rate)
     return audio[: i + tail]
