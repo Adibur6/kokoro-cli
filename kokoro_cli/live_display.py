@@ -10,6 +10,7 @@ from rich.text import Text
 
 SENTENCE_END = (".", "!", "?")
 MAX_WIDTH = 88
+VISIBLE_LINES = 5
 
 
 @dataclass
@@ -43,7 +44,7 @@ def render_line(tokens, *, elapsed: float | None = None, dim: bool = False) -> T
     line = Text()
     for tok in tokens:
         if tok is current:
-            style = "bold reverse"
+            style = "bold cyan underline"
         elif dim:
             style = "dim"
         else:
@@ -66,12 +67,14 @@ def render_frame(segments: list[Segment], chunk_id: int | None, elapsed: float, 
         starts = [t.start_ts for t in segments[i].tokens if t.start_ts is not None]
         if starts and min(starts) <= elapsed:
             idx = i
+    half = VISIBLE_LINES // 2
+    offsets = range(-half, half + 1)
     frame = Text()
-    for offset in (-1, 0, 1):
+    for offset in offsets:
         i = idx + offset
         if 0 <= i < len(segments):
             frame.append(render_line(segments[i].tokens, elapsed=elapsed if offset == 0 else None, dim=offset != 0))
-        if offset != 1:
+        if offset != offsets[-1]:
             frame.append("\n")
     return Panel(frame, title=title, title_align="left", border_style="cyan", width=MAX_WIDTH)
 
