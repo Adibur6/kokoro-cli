@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from rich.console import Group
 from rich.panel import Panel
 from rich.progress_bar import ProgressBar
+from rich.spinner import Spinner
 from rich.table import Table
 from rich.text import Text
 
@@ -116,33 +117,38 @@ def render_watch_header(voice: str, device: str) -> Panel:
     return Panel(body, title="kokoro live --watch", title_align="left", border_style="cyan", width=MAX_WIDTH)
 
 
+HISTORY_MAX_ROWS = 5
 HISTORY_NUM_WIDTH = 3
 HISTORY_SNIPPET_WIDTH = 56
 HISTORY_DURATION_WIDTH = 8
 
 
-def _history_grid() -> Table:
+def render_history_table(entries: list[tuple[int, str, float]]) -> Table:
+    """The most recent (up to HISTORY_MAX_ROWS) completed clips, #/Clip/Duration."""
     grid = Table.grid(padding=(0, 1))
     grid.add_column(width=HISTORY_NUM_WIDTH, justify="right")
     grid.add_column(width=HISTORY_SNIPPET_WIDTH, no_wrap=True, overflow="ellipsis")
     grid.add_column(width=HISTORY_DURATION_WIDTH, justify="right")
-    return grid
-
-
-def render_history_header() -> Table:
-    grid = _history_grid()
     grid.add_row(Text("#", style="dim"), Text("Clip", style="dim"), Text("Duration", style="dim"))
+    for index, snippet, duration in entries:
+        grid.add_row(
+            Text(str(index), style="cyan bold"),
+            Text(snippet, style="dim"),
+            Text(f"{duration:.2f}s", style="dim"),
+        )
     return grid
 
 
-def render_history_row(index: int, snippet: str, duration: float) -> Table:
-    grid = _history_grid()
-    grid.add_row(
-        Text(str(index), style="cyan bold"),
-        Text(snippet, style="dim"),
-        Text(f"{duration:.2f}s", style="dim"),
-    )
-    return grid
+def render_idle(history: list[tuple[int, str, float]], spoken_count: int) -> Group:
+    """Rolling last-N history plus the "watching" spinner, redrawn in place."""
+    label = Text("Watching for the next clip... ", style="dim")
+    label.append(f"({spoken_count} spoken)", style="cyan")
+    parts = []
+    if history:
+        parts.append(render_history_table(history))
+        parts.append(Text())
+    parts.append(Spinner("dots", text=label, style="cyan"))
+    return Group(*parts)
 
 
 def render_display(

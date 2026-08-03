@@ -5,9 +5,12 @@ import select
 import subprocess
 import threading
 import time
+from collections import deque
 from collections.abc import Iterator
 
-from kokoro_cli.live_display import render_history_header, render_history_row, render_watch_header
+from rich.live import Live
+
+from kokoro_cli.live_display import HISTORY_MAX_ROWS, render_history_table, render_idle, render_watch_header
 
 WATCH_POLL_SECS = 0.35
 MAX_MONITOR_RESTARTS = 3
@@ -147,42 +150,39 @@ def watch_clipboard(speak, console, pipe, voice: str, voice_path: str, device: s
     watcher.start()
 
     spoken_count = 0
-    idle_status = None
+    history: deque = deque(maxlen=HISTORY_MAX_ROWS)
+    idle_live: Live | None = None
     try:
         while True:
             with state_lock:
                 cancel.clear()
                 next_text, state["pending"] = state["pending"], None
             if next_text is None:
-                if idle_status is None:
-                    idle_status = console.status(
-                        f"Watching for the next clip... [cyan]({spoken_count} spoken)[/cyan]",
-                        spinner="dots",
-                        spinner_style="cyan",
-                    )
-                    idle_status.start()
+                if idle_live is None:
+                    idle_live = Live(console=console, transient=True, refresh_per_second=12.5)
+                    idle_live.start()
+                    idle_live.update(render_idle(list(history), spoken_count))
                 time.sleep(WATCH_POLL_SECS)
                 continue
-            if idle_status is not None:
-                idle_status.stop()
-                idle_status = None
+            if idle_live is not None:
+                idle_live.stop()
+                idle_live = None
             spoken_count += 1
             stats: dict = {}
             interrupted = speak(
                 console, pipe, voice, voice_path, device, speed, next_text,
                 cancel=cancel, announce=False, report_done=False, stats=stats, title=f"#{spoken_count}",
             )
-            if spoken_count == 1:
-                console.print(render_history_header())
-            console.print(render_history_row(spoken_count, _snippet(next_text), stats.get("total", 0.0)))
-            console.print()
+            history.append((spoken_count, _snippet(next_text), stats.get("total", 0.0)))
             if interrupted:
                 break
     except KeyboardInterrupt:
         console.print("\n[yellow]Interrupted.[/yellow] Stopping watch mode...")
     finally:
-        if idle_status is not None:
-            idle_status.stop()
+        if idle_live is not None:
+            idle_live.stop()
+        if history:
+            console.print(render_history_table(list(history)))
         stop_watching.set()
         proc = monitor_state["proc"]
         if proc is not None:
