@@ -1,5 +1,6 @@
 .env
 .venv/
+.claude/
 .opencode/
 samples/
 __pycache__/
