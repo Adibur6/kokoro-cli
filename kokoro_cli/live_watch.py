@@ -1,11 +1,30 @@
 from __future__ import annotations
 
+import os
+import select
 import subprocess
 import threading
 import time
+from collections.abc import Iterator
 
 WATCH_POLL_SECS = 0.35
+MAX_MONITOR_RESTARTS = 3
+MONITOR_RESTART_DELAY_SECS = 0.5
 CHANGE_COUNT_SCRIPT = 'ObjC.import("AppKit"); $.NSPasteboard.generalPasteboard.changeCount'
+MONITOR_SCRIPT = """\
+ObjC.import("AppKit");
+var pb = $.NSPasteboard.generalPasteboard;
+var last = pb.changeCount;
+function emit(s) {
+    var out = $.NSFileHandle.fileHandleWithStandardOutput;
+    out.writeData($.NSString.alloc.initWithUTF8String(s).dataUsingEncoding($.NSUTF8StringEncoding));
+}
+while (true) {
+    var cur = pb.changeCount;
+    if (cur !== last) { last = cur; emit(cur + "\\n"); }
+    $.NSRunLoop.currentRunLoop.runUntilDate($.NSDate.dateWithTimeIntervalSinceNow(0.2));
+}
+"""
 SNIPPET_LIMIT = 60
 
 
@@ -29,6 +48,57 @@ def _pasteboard_change_count() -> int | None:
         return None
 
 
+def _start_pasteboard_monitor() -> subprocess.Popen | None:
+    """Long-lived osascript process that prints a line per clipboard change, so idle
+    watch mode doesn't spawn a subprocess every poll."""
+    try:
+        return subprocess.Popen(
+            ["osascript", "-l", "JavaScript", "-e", MONITOR_SCRIPT],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        )
+    except OSError:
+        return None
+
+
+def _read_clipboard() -> str:
+    try:
+        return subprocess.run(["pbpaste"], capture_output=True, text=True, check=True).stdout
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return ""
+
+
+def _iter_monitor_changes(fd: int, stop_watching: threading.Event) -> Iterator[int]:
+    """Yield each new pasteboard changeCount read from the monitor pipe.
+
+    Returns (stops yielding) once the monitor's pipe hits EOF or errors, which
+    the caller takes as its cue to fall back to polling.
+    """
+    while not stop_watching.is_set():
+        try:
+            ready, _, _ = select.select([fd], [], [], 0.5)
+            if not ready:
+                continue
+            data = os.read(fd, 4096)
+        except (OSError, ValueError):
+            return
+        if not data:
+            return
+        for line in data.decode(errors="replace").splitlines():
+            try:
+                yield int(line.strip())
+            except ValueError:
+                continue
+
+
+def _iter_polled_changes(stop_watching: threading.Event) -> Iterator[int]:
+    """Yield the pasteboard changeCount every WATCH_POLL_SECS, spawning osascript each time."""
+    while not stop_watching.is_set():
+        change_count = _pasteboard_change_count()
+        if change_count is not None:
+            yield change_count
+        stop_watching.wait(WATCH_POLL_SECS)
+
+
 def watch_clipboard(speak, console, pipe, voice: str, voice_path: str, device: str, speed: float) -> None:
     console.print(
         f"Watching clipboard with voice '{voice}' on {device}... "
@@ -39,23 +109,40 @@ def watch_clipboard(speak, console, pipe, voice: str, voice_path: str, device: s
     state_lock = threading.Lock()
     cancel = threading.Event()
     stop_watching = threading.Event()
+    monitor_state = {"proc": None}
+
+    def handle_change(change_count: int) -> None:
+        text = _read_clipboard().strip()
+        if text:
+            with state_lock:
+                state["pending"] = text
+            cancel.set()
+
+    def changes() -> Iterator[int]:
+        # Read from the monitor pipe. If it never starts or dies, respawn it up to
+        # MAX_MONITOR_RESTARTS times before giving up and polling for the rest of
+        # the session.
+        restarts_left = MAX_MONITOR_RESTARTS
+        while True:
+            proc = _start_pasteboard_monitor()
+            monitor_state["proc"] = proc
+            if proc is not None:
+                yield from _iter_monitor_changes(proc.stdout.fileno(), stop_watching)
+                proc.poll()  # reap the dead monitor process
+            if stop_watching.is_set() or restarts_left <= 0:
+                break
+            restarts_left -= 1
+            stop_watching.wait(MONITOR_RESTART_DELAY_SECS)
+        yield from _iter_polled_changes(stop_watching)
 
     def poll_clipboard() -> None:
+        # Seed with the clipboard's current state so pre-existing content isn't
+        # treated as a fresh copy the moment watching starts (or falls back).
         last_change_count = _pasteboard_change_count()
-        while not stop_watching.is_set():
-            change_count = _pasteboard_change_count()
-            if change_count is not None and change_count != last_change_count:
+        for change_count in changes():
+            if change_count != last_change_count:
                 last_change_count = change_count
-                try:
-                    clip = subprocess.run(["pbpaste"], capture_output=True, text=True, check=True).stdout
-                except (subprocess.CalledProcessError, FileNotFoundError):
-                    clip = ""
-                text = clip.strip()
-                if text:
-                    with state_lock:
-                        state["pending"] = text
-                    cancel.set()
-            stop_watching.wait(WATCH_POLL_SECS)
+                handle_change(change_count)
 
     watcher = threading.Thread(target=poll_clipboard, daemon=True)
     watcher.start()
@@ -86,3 +173,7 @@ def watch_clipboard(speak, console, pipe, voice: str, voice_path: str, device: s
         if idle_status is not None:
             idle_status.stop()
         stop_watching.set()
+        proc = monitor_state["proc"]
+        if proc is not None:
+            proc.terminate()
+            proc.wait(timeout=1)
