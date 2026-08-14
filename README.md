@@ -41,7 +41,8 @@ KOKORO_DATA_DIR="$(pwd)" kokoro install
 |---|---|
 | `kokoro tts "text"` | Generate speech to a file (wav/mp3/flac/ogg) |
 | `kokoro live "text"` | Stream speech live to speakers, sentence by sentence |
-| `kokoro profile "text"` | Benchmark the pipeline |
+| `kokoro live --watch` | Watch the clipboard and speak newly copied text (macOS) |
+| `kokoro profile "text"` | Benchmark the pipeline (time-to-first-word, real-time factor) |
 | `kokoro voices` | List available voices |
 | `kokoro install` | Download the model + voices (md5-verified, resumable) |
 | `kokoro uninstall` | Remove downloaded model data |
@@ -58,6 +59,12 @@ kokoro tts "Hello, world." --voice af_heart
 # Stream to speakers
 kokoro live "Hello, world."
 
+# Stream faster, and also save the full stream to a file
+kokoro live "Hello, world." --speed 1.3 --out output/hello.wav
+
+# Watch the clipboard: anything you copy gets spoken (macOS only)
+kokoro live --watch
+
 # Read from a file, write mp3
 kokoro tts --file samples/migration.txt --out output/migration.mp3
 
@@ -66,6 +73,22 @@ echo "Hello from stdin" | kokoro tts -
 
 # List voices
 kokoro voices
+
+# Skip the download confirmation
+kokoro install --yes
 ```
 
-Common options: `--voice` (any name from `Kokoro-82M/voices/`, default `af_heart`), `--lang` (`a` = American English, `b` = British English, plus `e`/`f`/`h`/`i`/`j`/`p`/`z` for Spanish/French/Hindi/Italian/Japanese/Portuguese/Chinese), `--device` (`cuda`, `mps`, or `cpu`; auto-detected).
+Common options (shared by `tts`, `live`, and `profile`):
+
+- `--voice` / `-v` — any name from `Kokoro-82M/voices/` (default `af_heart`).
+- `--lang` — `a` = American English (default), `b` = British English, plus `e`/`f`/`h`/`i`/`j`/`p`/`z` for Spanish/French/Hindi/Italian/Japanese/Brazilian Portuguese/Chinese.
+- `--device` — `cuda`, `mps`, or `cpu` (auto-detected by default).
+- `--file` / `-f` — read text from a file instead of the argument (repeatable). Both `tts` and `live` also read from stdin when the argument is `-`.
+
+`kokoro live` adds:
+
+- `--speed` — speech speed multiplier (`0.25`–`4.0`, default `1.0`).
+- `--out` / `-o` — also save the full stream to a file.
+- `--watch` — stream whatever you copy to the clipboard, one snippet at a time, until you stop it (macOS only; not combinable with text/`--file`/`--out`).
+
+While `kokoro live` is playing, **Space** pauses/resumes, **Esc** skips the current utterance (in `--watch` mode), and **Ctrl+C** stops.
