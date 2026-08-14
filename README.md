@@ -15,7 +15,7 @@ python3 -m venv .venv
 kokoro install
 ```
 
-`kokoro install` downloads only files that are missing or whose md5 doesn't match the expected hashes in `Kokoro-82M.md5`, and retries transient failures. The model is stored in the OS user-data dir (`~/Library/Application Support/kokoro-tts` on macOS, `~/.local/share/kokoro-tts` on Linux).
+`kokoro install` downloads only files that are missing or whose md5 doesn't match the expected hashes in `Kokoro-82M.md5`, and retries transient failures. The model is stored in the OS user-data dir (`~/Library/Application Support/kokoro` on macOS, `~/.local/share/kokoro` on Linux; override with `KOKORO_DATA_DIR`).
 
 Run `kokoro doctor` to see where the model lives and whether it's complete. `kokoro uninstall` removes the downloaded model data.
 
